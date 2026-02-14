@@ -29,12 +29,25 @@
       --paperText:#111827;
       --paperMuted:#4b5563;
     }
+    body.theme-light{
+      --bg:#f3f5fb;
+      --surface:#ffffff;
+      --card:#ffffff;
+      --border:rgba(15,23,42,.12);
+      --text:#0f172a;
+      --muted:#475569;
+      --accent:#2563eb;
+      --paper:#ffffff;
+      --paperText:#111827;
+      --paperMuted:#4b5563;
+    }
     body{
       background: radial-gradient(1200px 800px at 30% -20%, rgba(59,130,246,.18), transparent 60%),
                   radial-gradient(900px 700px at 110% 10%, rgba(34,197,94,.12), transparent 55%),
                   linear-gradient(180deg, var(--bg), #0c1016);
       color: var(--text);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      transition: background .25s ease, color .2s ease;
     }
     .app-wrap{ max-width: 1450px; margin: 0 auto; padding: 18px 16px 40px; }
 
@@ -69,6 +82,20 @@
     .btn-wire.good{ background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.40); }
     .btn-wire.warn{ background: rgba(245,158,11,.16); border-color: rgba(245,158,11,.40); }
     .btn-wire.bad{ background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.40); }
+
+    .btn-icon{
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,.12);
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:900;
+    }
+    .btn-icon:hover{ color: var(--text); background: rgba(59,130,246,.15); }
 
     .chip{
       display:inline-flex; align-items:center; gap:.5rem;
@@ -144,6 +171,14 @@
       font-weight: 900;
     }
     .tree-meta{ margin-left:auto; color: var(--muted); font-size:.8rem; text-align:right; }
+    .tree-actions{ margin-left: auto; }
+    .dropdown-menu.ui-menu{
+      border:1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    }
+    .dropdown-menu.ui-menu .dropdown-item{ color: var(--text); }
+    .dropdown-menu.ui-menu .dropdown-item:hover{ background: rgba(59,130,246,.12); }
 
     /* Tier drag */
     .draggable-row{ cursor: grab; }
@@ -219,6 +254,7 @@
       <button class="btn-wire" id="btnViewJson">View JSON</button>
       <button class="btn-wire" id="btnCopyJsonTop">Copy JSON</button>
       <button class="btn-wire" id="btnPrint">Print Document</button>
+      <button class="btn-wire" id="btnTheme">☾ Dark</button>
       <button class="btn-wire primary" id="btnAddComponentTop">+ Component</button>
       <button class="btn-wire good" id="btnSave">Save</button>
       <button class="btn-wire warn" id="btnActivate">Activate</button>
@@ -244,11 +280,7 @@
           </div>
         </div>
 
-        <div class="d-flex flex-wrap gap-2 no-print">
-          <button class="btn-wire" id="btnRenamePlan">Rename Plan</button>
-          <button class="btn-wire" id="btnRenameComp">Rename Component</button>
-          <button class="btn-wire bad" id="btnDeleteComp">Delete Component</button>
-        </div>
+        <div class="small-muted">Use inline actions in the Components list to rename or delete.</div>
       </div>
     </div>
   </div>
@@ -263,7 +295,10 @@
             <div class="small-muted">Pagelet</div>
             <div style="font-weight:900;">Plan Components</div>
           </div>
-          <button class="btn-wire primary" id="btnAddComponentLeft">+ Component</button>
+          <div class="d-flex gap-2">
+            <button class="btn-wire" id="btnRenamePlan">Rename Plan</button>
+            <button class="btn-wire primary" id="btnAddComponentLeft">+ Component</button>
+          </div>
         </div>
         <div class="pagelet-bd" id="treeHost"></div>
       </div>
@@ -464,7 +499,7 @@ const state = {
       }
     ]
   },
-  ui: { activeComponentId: "comp_revenue" }
+  ui: { activeComponentId: "comp_revenue", theme: "dark" }
 };
 
 function uid(prefix){ return prefix + "_" + Math.random().toString(16).slice(2,10); }
@@ -484,6 +519,19 @@ function showToast(msg){
   document.getElementById("toastTime").textContent = new Date().toLocaleTimeString();
   const toast = bootstrap.Toast.getOrCreateInstance(document.getElementById("toastLive"), { delay: 2200 });
   toast.show();
+}
+
+function applyTheme(){
+  const isLight = state.ui.theme === "light";
+  document.body.classList.toggle("theme-light", isLight);
+  const btn = document.getElementById("btnTheme");
+  if(btn) btn.textContent = isLight ? "☀ Light" : "☾ Dark";
+}
+
+function toggleTheme(){
+  state.ui.theme = state.ui.theme === "light" ? "dark" : "light";
+  applyTheme();
+  showToast(`Theme: ${state.ui.theme}`);
 }
 
 function getActiveComponent(){
@@ -651,6 +699,14 @@ function renderTree(){
             <div class="small-muted">${escapeHtml(c.type)} • Tier: <b>${escapeHtml(tier)}</b></div>
           </div>
           <div class="tree-meta">${rules} rules</div>
+          <div class="tree-actions dropdown">
+            <button class="btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="Component actions">⋯</button>
+            <ul class="dropdown-menu dropdown-menu-end ui-menu">
+              <li><button class="dropdown-item js-comp-action" data-action="rename-plan" data-id="${c.id}">Rename Plan</button></li>
+              <li><button class="dropdown-item js-comp-action" data-action="rename-component" data-id="${c.id}">Rename Component</button></li>
+              <li><button class="dropdown-item text-danger js-comp-action" data-action="delete-component" data-id="${c.id}">Delete Component</button></li>
+            </ul>
+          </div>
         </div>
       `;
     }).join("")}
@@ -660,6 +716,17 @@ function renderTree(){
       state.ui.activeComponentId = n.dataset.id;
       renderAll();
       showToast("Loaded component");
+    });
+  });
+  host.querySelectorAll(".tree-actions").forEach(el=>{
+    el.addEventListener("click", (e)=>e.stopPropagation());
+  });
+  host.querySelectorAll(".js-comp-action").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.ui.activeComponentId = btn.dataset.id;
+      if(btn.dataset.action === "rename-plan") renamePlan();
+      if(btn.dataset.action === "rename-component") renameComponent();
+      if(btn.dataset.action === "delete-component") deleteActiveComponent();
     });
   });
 }
@@ -1474,6 +1541,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
   document.getElementById("btnCopyJson").addEventListener("click", copyJsonText);
   document.getElementById("btnCopyJsonTop").addEventListener("click", copyJsonText);
   document.getElementById("btnPrint").addEventListener("click", ()=>window.print());
+  document.getElementById("btnTheme").addEventListener("click", toggleTheme);
 
   document.getElementById("btnAddComponentTop").addEventListener("click", addComponent);
   document.getElementById("btnAddComponentLeft").addEventListener("click", addComponent);
@@ -1483,14 +1551,13 @@ document.addEventListener("DOMContentLoaded", ()=>{
   document.getElementById("btnArchive").addEventListener("click", archivePlan);
 
   document.getElementById("btnRenamePlan").addEventListener("click", renamePlan);
-  document.getElementById("btnRenameComp").addEventListener("click", renameComponent);
-  document.getElementById("btnDeleteComp").addEventListener("click", deleteActiveComponent);
   document.getElementById("btnResetComp").addEventListener("click", resetActiveComponent);
   document.getElementById("btnRefreshDoc").addEventListener("click", ()=>{ renderDoc(); showToast("Document refreshed"); });
 
   document.getElementById("simRevenue").addEventListener("input", refreshSimulation);
   document.getElementById("simMode").addEventListener("change", ()=>{ refreshSimulation(); showToast("Simulation mode changed"); });
 
+  applyTheme();
   renderAll();
 });
 </script>
