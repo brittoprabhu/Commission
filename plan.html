@@ -1,0 +1,1499 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Commission Plan Designer (FULL UI + Editable)</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b0d10;
+      --surface:#12151b;
+      --card:#161a22;
+      --border:rgba(255,255,255,.12);
+      --text:#e9edf6;
+      --muted:#aab3c2;
+      --accent:#3b82f6;
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+
+      --paper:#ffffff;
+      --paperText:#111827;
+      --paperMuted:#4b5563;
+    }
+    body{
+      background: radial-gradient(1200px 800px at 30% -20%, rgba(59,130,246,.18), transparent 60%),
+                  radial-gradient(900px 700px at 110% 10%, rgba(34,197,94,.12), transparent 55%),
+                  linear-gradient(180deg, var(--bg), #0c1016);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    .app-wrap{ max-width: 1450px; margin: 0 auto; padding: 18px 16px 40px; }
+
+    /* Sticky top header */
+    .topbar{
+      position: sticky; top:0; z-index: 1050;
+      background: linear-gradient(180deg, rgba(18,21,27,.94), rgba(18,21,27,.75));
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner{ max-width:1450px; margin:0 auto; padding: 14px 16px; }
+    .brand{ display:flex; align-items:center; gap:12px; }
+    .brand-badge{
+      padding: 8px 12px; border-radius: 12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      font-weight: 900;
+      letter-spacing:.03em;
+    }
+    .btn-wire{
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: .5rem .95rem;
+      font-weight: 900;
+      font-size: .88rem;
+      white-space: nowrap;
+    }
+    .btn-wire:hover{ background: rgba(255,255,255,.09); }
+    .btn-wire.primary{ background: rgba(59,130,246,.20); border-color: rgba(59,130,246,.45); }
+    .btn-wire.good{ background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.40); }
+    .btn-wire.warn{ background: rgba(245,158,11,.16); border-color: rgba(245,158,11,.40); }
+    .btn-wire.bad{ background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.40); }
+
+    .chip{
+      display:inline-flex; align-items:center; gap:.5rem;
+      padding:.28rem .65rem; border-radius:999px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.20);
+      font-size:.78rem; font-weight:900;
+    }
+    .small-muted{ color: var(--muted); font-size:.85rem; }
+
+    /* Pagelets */
+    .pagelet{
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border:1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 12px 36px rgba(0,0,0,.25);
+      overflow: hidden;
+    }
+    .pagelet-hd{
+      padding: 12px 14px;
+      border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+    .pagelet-bd{ padding: 14px; }
+
+    .block{
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.18);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .form-control, .form-select, textarea{
+      background: rgba(0,0,0,.22) !important;
+      border: 1px solid var(--border) !important;
+      color: var(--text) !important;
+      border-radius: 12px !important;
+    }
+    .form-control::placeholder, textarea::placeholder{ color: rgba(170,179,194,.75); }
+
+    /* Tree */
+    .tree-group{
+      margin-top: 6px;
+      color: var(--muted);
+      font-weight: 900;
+      font-size:.78rem;
+      letter-spacing:.03em;
+      text-transform: uppercase;
+      padding: 6px 8px;
+    }
+    .tree-node{
+      padding: 10px 10px;
+      border-radius: 14px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.16);
+      display:flex; align-items:center; gap:10px;
+      cursor: pointer;
+      user-select:none;
+      margin-bottom: 10px;
+    }
+    .tree-node:hover{ background: rgba(59,130,246,.10); border-color: rgba(59,130,246,.35); }
+    .tree-node.active{
+      background: rgba(59,130,246,.16);
+      border-color: rgba(59,130,246,.55);
+      outline: 2px solid rgba(59,130,246,.22);
+    }
+    .tree-ic{
+      width:30px; height:30px; border-radius: 12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      display:flex; align-items:center; justify-content:center;
+      color: var(--muted);
+      font-weight: 900;
+    }
+    .tree-meta{ margin-left:auto; color: var(--muted); font-size:.8rem; text-align:right; }
+
+    /* Tier drag */
+    .draggable-row{ cursor: grab; }
+    .draggable-row.dragging{
+      opacity: .55;
+      outline: 2px dashed rgba(59,130,246,.55);
+      border-radius: 10px;
+    }
+
+    /* Paper document preview */
+    .paper{
+      background: var(--paper);
+      color: var(--paperText);
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,.22);
+      box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      padding: 18px;
+    }
+    .paper h3{ color: var(--paperText); margin: 0 0 10px; }
+    .paper .muted{ color: var(--paperMuted); font-size: 12px; }
+    .paper hr{ border-color: rgba(0,0,0,.18); }
+    .paper .clause-title{
+      font-weight: 800;
+      border-bottom: 2px solid #111;
+      padding-bottom: 6px;
+      margin-top: 14px;
+    }
+    .paper table{
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    .paper th,.paper td{
+      border:1px solid rgba(0,0,0,.25);
+      padding:6px 8px;
+      text-align:left;
+    }
+    .paper thead th{
+      background:#f3f4f6;
+      font-weight:800;
+    }
+
+    .toast{
+      background: rgba(18,21,27,.92);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    @media print{
+      .topbar, .no-print{ display:none !important; }
+      body{ background:white; color:#111; }
+      .pagelet{ box-shadow:none; border: none; }
+      .paper{ box-shadow:none; border:1px solid #000; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- Topbar -->
+<div class="topbar no-print">
+  <div class="topbar-inner d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="brand">
+      <div class="brand-badge">QC</div>
+      <div>
+        <div style="font-weight:900;line-height:1.1;">Commission Plan Designer</div>
+        <div class="small-muted">Full Pagelet UI • Fully Editable • Credit Assignment • IF/THEN/DRAW/CAP</div>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <button class="btn-wire" id="btnViewJson">View JSON</button>
+      <button class="btn-wire" id="btnCopyJsonTop">Copy JSON</button>
+      <button class="btn-wire" id="btnPrint">Print Document</button>
+      <button class="btn-wire primary" id="btnAddComponentTop">+ Component</button>
+      <button class="btn-wire good" id="btnSave">Save</button>
+      <button class="btn-wire warn" id="btnActivate">Activate</button>
+      <button class="btn-wire bad" id="btnArchive">Archive</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-wrap">
+
+  <!-- Header Pagelet -->
+  <div class="pagelet mb-3">
+    <div class="pagelet-bd">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div class="small-muted">Page Header Pagelet</div>
+          <div class="h4 mb-1" style="font-weight:900;" id="hdrTitle">—</div>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="chip" id="hdrStatus">Status: —</span>
+            <span class="chip" id="hdrEffective">Effective: —</span>
+            <span class="chip" id="hdrCurrency">Currency: —</span>
+            <span class="chip" id="hdrVersion">Version: —</span>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 no-print">
+          <button class="btn-wire" id="btnRenamePlan">Rename Plan</button>
+          <button class="btn-wire" id="btnRenameComp">Rename Component</button>
+          <button class="btn-wire bad" id="btnDeleteComp">Delete Component</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="row g-3">
+    <!-- Left Tree -->
+    <div class="col-12 col-lg-3">
+      <div class="pagelet h-100">
+        <div class="pagelet-hd">
+          <div>
+            <div class="small-muted">Pagelet</div>
+            <div style="font-weight:900;">Plan Components</div>
+          </div>
+          <button class="btn-wire primary" id="btnAddComponentLeft">+ Component</button>
+        </div>
+        <div class="pagelet-bd" id="treeHost"></div>
+      </div>
+    </div>
+
+    <!-- Center Editor -->
+    <div class="col-12 col-lg-5">
+      <div class="pagelet h-100">
+        <div class="pagelet-hd">
+          <div>
+            <div class="small-muted">Pagelet</div>
+            <div style="font-weight:900;" id="editorTitle">Component Editor —</div>
+            <div class="small-muted" id="editorSubTitle">—</div>
+          </div>
+          <div class="d-flex gap-2 no-print">
+            <button class="btn-wire warn" id="btnResetComp">Reset</button>
+          </div>
+        </div>
+        <div class="pagelet-bd" id="editorHost"></div>
+      </div>
+    </div>
+
+    <!-- Right Legal Doc -->
+    <div class="col-12 col-lg-4">
+      <div class="pagelet h-100">
+        <div class="pagelet-hd">
+          <div>
+            <div class="small-muted">Pagelet</div>
+            <div style="font-weight:900;">Legal Plan Document Preview</div>
+          </div>
+          <div class="d-flex gap-2 no-print">
+            <button class="btn-wire" id="btnRefreshDoc">Refresh</button>
+          </div>
+        </div>
+        <div class="pagelet-bd">
+          <div class="paper" id="docHost"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulation Pagelet -->
+  <div class="pagelet mt-3">
+    <div class="pagelet-hd">
+      <div>
+        <div class="small-muted">Pagelet</div>
+        <div style="font-weight:900;">Real-time Simulation</div>
+        <div class="small-muted">Manual Revenue OR TXN mode (Credit Assignment + IF conditions apply)</div>
+      </div>
+      <span class="chip" id="simModeChip">Tier: —</span>
+    </div>
+    <div class="pagelet-bd">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-3">
+          <div class="small-muted mb-1">Simulation Mode</div>
+          <select class="form-select" id="simMode">
+            <option value="MANUAL" selected>Manual Revenue</option>
+            <option value="TXN">Sample Transactions</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="small-muted mb-1">Revenue (Manual)</div>
+          <input class="form-control" id="simRevenue" type="number" value="150000">
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="small-muted mb-1">Commission</div>
+          <input class="form-control" id="simCommission" disabled>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="small-muted mb-1">Effective Rate</div>
+          <input class="form-control" id="simEffRate" disabled>
+        </div>
+      </div>
+
+      <div class="block mt-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <div class="small-muted"><b>TXN Mode</b>: shows which transactions matched.</div>
+          <span class="chip" id="simTxnSummary">Eligible Revenue: —</span>
+        </div>
+        <div class="small-muted" id="simTxnIds">—</div>
+      </div>
+
+      <div class="block mt-3">
+        <canvas id="simChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- JSON Modal -->
+<div class="modal fade" id="jsonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content" style="background: rgba(18,21,27,.96); border:1px solid var(--border); color:var(--text); border-radius:16px;">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title" style="font-weight:900;">Current JSON Model</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <pre id="jsonPre" style="white-space:pre-wrap; word-break:break-word; margin:0; color:#d7deea;"></pre>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);">
+        <button class="btn-wire" id="btnCopyJson">Copy</button>
+        <button class="btn-wire bad" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed top-0 end-0 p-3 no-print" style="z-index: 2000;">
+  <div id="toastLive" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header" style="background:transparent;border-bottom:1px solid var(--border); color:var(--text);">
+      <strong class="me-auto">UI</strong>
+      <small class="text-secondary-emphasis" id="toastTime">now</small>
+      <button type="button" class="btn-close btn-close-white ms-2 mb-1" data-bs-dismiss="toast"></button>
+    </div>
+    <div class="toast-body" id="toastBody">—</div>
+  </div>
+</div>
+
+<script>
+/* ==========================================================
+   FULL STATE
+========================================================== */
+const state = {
+  runtime: {
+    currentPayee: { id:"P001", name:"John Sales", managerId:"M001" },
+    transactions: [
+      { id:"T1", revenue:120000, assignedPayeeId:"P001", overlayPayeeIds:["P002"], managerId:"M001", productCategory:"Hardware", region:"APAC" },
+      { id:"T2", revenue:80000,  assignedPayeeId:"P002", overlayPayeeIds:["P001"], managerId:"M001", productCategory:"Hardware", region:"APAC" },
+      { id:"T3", revenue:60000,  assignedPayeeId:"P003", overlayPayeeIds:[],       managerId:"P001", productCategory:"Hardware", region:"APAC" },
+      { id:"T4", revenue:250000, assignedPayeeId:"P003", overlayPayeeIds:[],       managerId:"M002", productCategory:"Services", region:"EMEA" }
+    ]
+  },
+  plan: {
+    id: "planA",
+    name: "Sales Commission Plan A",
+    currency: "INR",
+    version: "V2",
+    status: "Draft",
+    effectiveFrom: "2025-04-01",
+    effectiveTo: "2025-12-31",
+    payeeLanguage: {
+      title: "Sales Commission Plan Document",
+      intro:
+        "This commission plan defines the compensation structure applicable to eligible payees. " +
+        "All commissions are subject to company policies and the rules described below."
+    },
+    components: [
+      {
+        id: "comp_revenue",
+        name: "Revenue Component",
+        type: "TieredPercentage",
+        appliesTo: { role: "Sales Rep", region: "APAC" },
+
+        // CREDIT ASSIGNMENT (NEW)
+        creditScope: { direct:true, overlay:true, manager:false },
+
+        // IF
+        conditions: [
+          { id:"c1", join:"IF",  metric:"Revenue",         op:">", value:0 },
+          { id:"c2", join:"AND", metric:"ProductCategory", op:"=", value:"Hardware" },
+          { id:"c3", join:"AND", metric:"Region",          op:"=", value:"APAC" }
+        ],
+
+        // THEN
+        tierMode: "PROGRESSIVE", // SIMPLE | PROGRESSIVE | FLOOR
+        baseRate: 5,
+
+        tiers: [
+          { id:"t1", from:0, to:100000, rate:5 },
+          { id:"t2", from:100000, to:200000, rate:7 },
+          { id:"t3", from:200000, to:null, rate:10 }
+        ],
+
+        // DRAW
+        draw: { type:"None", amount:0, recovery:"N/A" },
+
+        // CAP
+        cap: { enabled:true, amount:250000 },
+
+        notes: "Rates apply on eligible revenue. Subject to approval and clawback policy."
+      },
+      {
+        id: "comp_accel",
+        name: "Product Accelerator",
+        type: "Accelerator",
+        appliesTo: { role: "Sales Rep", region: "APAC" },
+        creditScope: { direct:true, overlay:false, manager:false },
+        conditions: [{ id:"c1", join:"IF", metric:"ProductCategory", op:"=", value:"Hardware" }],
+        tierMode: "SIMPLE",
+        baseRate: 0,
+        tiers: [{ id:"t1", from:0, to:null, rate:2 }],
+        draw: { type:"None", amount:0, recovery:"N/A" },
+        cap: { enabled:false, amount:null },
+        notes: "Accelerator applies on eligible products only."
+      }
+    ]
+  },
+  ui: { activeComponentId: "comp_revenue" }
+};
+
+function uid(prefix){ return prefix + "_" + Math.random().toString(16).slice(2,10); }
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function escapeAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
+
+function showToast(msg){
+  document.getElementById("toastBody").textContent = msg;
+  document.getElementById("toastTime").textContent = new Date().toLocaleTimeString();
+  const toast = bootstrap.Toast.getOrCreateInstance(document.getElementById("toastLive"), { delay: 2200 });
+  toast.show();
+}
+
+function getActiveComponent(){
+  return state.plan.components.find(c=>c.id===state.ui.activeComponentId) || state.plan.components[0];
+}
+
+function formatCurrencyINR(v){
+  try{ return "₹ " + Number(v||0).toLocaleString("en-IN"); }
+  catch{ return "₹ " + v; }
+}
+
+function compIcon(type){
+  if(type==="TieredPercentage") return "⎇";
+  if(type==="Accelerator") return "⚡";
+  if(type==="Bonus") return "★";
+  return "•";
+}
+function tierModeExplain(mode){
+  if(mode==="SIMPLE") return "Single Rate: entire revenue paid at the achieved slab rate.";
+  if(mode==="PROGRESSIVE") return "Progressive: each slab range paid at its rate (incremental).";
+  if(mode==="FLOOR") return "Floor: base rate always applies + slab incentive is additional.";
+  return "";
+}
+
+/* ==========================================================
+   CREDIT ASSIGNMENT (Direct / Overlay / Manager)
+========================================================== */
+function passesCreditScope(tx, comp, payee){
+  const scope = comp.creditScope || { direct:true, overlay:false, manager:false };
+  if(scope.direct && tx.assignedPayeeId === payee.id) return true;
+  if(scope.overlay && Array.isArray(tx.overlayPayeeIds) && tx.overlayPayeeIds.includes(payee.id)) return true;
+  if(scope.manager && tx.managerId === payee.id) return true;
+  return false;
+}
+
+/* ==========================================================
+   IF CONDITIONS EVALUATION
+========================================================== */
+function getMetricValue(tx, metric){
+  switch(metric){
+    case "Revenue": return Number(tx.revenue || 0);
+    case "ProductCategory": return tx.productCategory ?? "";
+    case "Region": return tx.region ?? "";
+    case "AssignedPayeeId": return tx.assignedPayeeId ?? "";
+    default: return tx[metric];
+  }
+}
+
+function evalCondition(tx, cond){
+  const left = getMetricValue(tx, cond.metric);
+  const op = (cond.op || "").trim();
+  const rightRaw = cond.value;
+
+  const isNum = typeof left === "number" && !Number.isNaN(left);
+  if(op === "=" || op === "==") return String(left) === String(rightRaw);
+  if(op === "!=") return String(left) !== String(rightRaw);
+
+  if(isNum){
+    const right = Number(rightRaw);
+    if(op === ">") return left > right;
+    if(op === "<") return left < right;
+    if(op === ">=") return left >= right;
+    if(op === "<=") return left <= right;
+  }
+  return true;
+}
+
+function passesConditions(tx, comp){
+  const conds = comp.conditions || [];
+  if(conds.length === 0) return true;
+
+  let result = evalCondition(tx, conds[0]);
+  for(let i=1;i<conds.length;i++){
+    const c = conds[i];
+    const v = evalCondition(tx, c);
+    const join = (c.join || "AND").toUpperCase();
+    result = (join === "OR") ? (result || v) : (result && v);
+  }
+  return result;
+}
+
+/* ==========================================================
+   COMMISSION ENGINE
+========================================================== */
+function computeCommission(comp, revenue){
+  const mode = comp.tierMode || "PROGRESSIVE";
+  const tiers = (comp.tiers || []).slice().sort((a,b)=>Number(a.from||0)-Number(b.from||0));
+  const baseRate = Number(comp.baseRate || 0);
+
+  let payout = 0;
+
+  if(mode==="SIMPLE"){
+    const hit = tiers.find(t => revenue >= Number(t.from||0) && (t.to==null || revenue < Number(t.to)));
+    payout = revenue * (Number(hit?.rate || 0)/100);
+  }
+  else if(mode==="PROGRESSIVE"){
+    for(const t of tiers){
+      const from = Number(t.from||0);
+      const to = (t.to==null ? revenue : Number(t.to));
+      if(revenue > from){
+        const amount = Math.min(revenue, to) - from;
+        if(amount > 0) payout += amount * (Number(t.rate||0)/100);
+      }
+    }
+  }
+  else if(mode==="FLOOR"){
+    const hit = tiers.find(t => revenue >= Number(t.from||0) && (t.to==null || revenue < Number(t.to)));
+    const slabRate = Number(hit?.rate || 0);
+    payout = revenue*(baseRate/100) + revenue*(slabRate/100);
+  }
+
+  if(comp.cap?.enabled && comp.cap?.amount != null){
+    const cap = Number(comp.cap.amount);
+    if(!Number.isNaN(cap) && payout > cap) payout = cap;
+  }
+  return payout;
+}
+
+function evaluateTransactionsForPayee(comp){
+  const payee = state.runtime.currentPayee;
+  const txs = state.runtime.transactions;
+
+  const matched = [];
+  let eligibleRevenue = 0;
+
+  for(const tx of txs){
+    if(!passesCreditScope(tx, comp, payee)) continue;
+    if(!passesConditions(tx, comp)) continue;
+    matched.push(tx);
+    eligibleRevenue += Number(tx.revenue || 0);
+  }
+
+  const commission = computeCommission(comp, eligibleRevenue);
+  return { matched, eligibleRevenue, commission };
+}
+
+/* ==========================================================
+   RENDER: HEADER
+========================================================== */
+function renderHeader(){
+  const p = state.plan;
+  document.getElementById("hdrTitle").textContent = `${p.name}`;
+  document.getElementById("hdrStatus").textContent = `Status: ${p.status}`;
+  document.getElementById("hdrEffective").textContent = `Effective: ${p.effectiveFrom} → ${p.effectiveTo}`;
+  document.getElementById("hdrCurrency").textContent = `Currency: ${p.currency}`;
+  document.getElementById("hdrVersion").textContent = `Version: ${p.version}`;
+}
+
+/* ==========================================================
+   RENDER: TREE
+========================================================== */
+function renderTree(){
+  const host = document.getElementById("treeHost");
+  host.innerHTML = `
+    <div class="tree-group">Components</div>
+    ${state.plan.components.map(c=>{
+      const active = c.id===state.ui.activeComponentId ? "active" : "";
+      const tier = c.tierMode || "PROGRESSIVE";
+      const rules = c.conditions?.length || 0;
+      return `
+        <div class="tree-node ${active}" data-id="${c.id}">
+          <div class="tree-ic">${compIcon(c.type)}</div>
+          <div>
+            <div style="font-weight:900;">${escapeHtml(c.name)}</div>
+            <div class="small-muted">${escapeHtml(c.type)} • Tier: <b>${escapeHtml(tier)}</b></div>
+          </div>
+          <div class="tree-meta">${rules} rules</div>
+        </div>
+      `;
+    }).join("")}
+  `;
+  host.querySelectorAll(".tree-node").forEach(n=>{
+    n.addEventListener("click", ()=>{
+      state.ui.activeComponentId = n.dataset.id;
+      renderAll();
+      showToast("Loaded component");
+    });
+  });
+}
+
+/* ==========================================================
+   RENDER: EDITOR (Fully editable)
+========================================================== */
+function renderEditor(){
+  const comp = getActiveComponent();
+  document.getElementById("editorTitle").textContent = `Component Editor — ${comp.name}`;
+  document.getElementById("editorSubTitle").textContent =
+    `${comp.type} • Applies: ${comp.appliesTo?.role ?? "—"} / ${comp.appliesTo?.region ?? "—"}`;
+
+  const credit = comp.creditScope || { direct:true, overlay:false, manager:false };
+
+  const host = document.getElementById("editorHost");
+  host.innerHTML = `
+    <!-- Component basics -->
+    <div class="block mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div style="font-weight:900;">Component</div>
+        <span class="chip">ID: ${escapeHtml(comp.id)}</span>
+      </div>
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Component Type</div>
+          <select class="form-select" id="compType">
+            <option value="TieredPercentage">TieredPercentage</option>
+            <option value="Accelerator">Accelerator</option>
+            <option value="Bonus">Bonus</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Applies To (Role)</div>
+          <input class="form-control" id="compRole" value="${escapeAttr(comp.appliesTo?.role ?? "")}">
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Applies To (Region)</div>
+          <input class="form-control" id="compRegion" value="${escapeAttr(comp.appliesTo?.region ?? "")}">
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Notes</div>
+          <input class="form-control" id="compNotes" value="${escapeAttr(comp.notes ?? "")}">
+        </div>
+      </div>
+    </div>
+
+    <!-- CREDIT ASSIGNMENT pagelet (NEW) -->
+    <div class="block mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div style="font-weight:900;">CREDIT ASSIGNMENT</div>
+        <span class="chip">Payee: ${escapeHtml(state.runtime.currentPayee.name)} (${escapeHtml(state.runtime.currentPayee.id)})</span>
+      </div>
+      <div class="small-muted mb-2">This filter runs before IF conditions.</div>
+      <div class="row g-3">
+        <div class="col-12 col-md-7">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="creditDirect" ${credit.direct ? "checked":""}>
+            <label class="form-check-label" for="creditDirect">Direct Assignment</label>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="creditOverlay" ${credit.overlay ? "checked":""}>
+            <label class="form-check-label" for="creditOverlay">Overlay Credit</label>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="creditManager" ${credit.manager ? "checked":""}>
+            <label class="form-check-label" for="creditManager">Manager Hierarchy</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-5">
+          <div class="block" style="padding:10px;">
+            <div class="small-muted"><b>Used in TXN simulation</b></div>
+            <div class="small-muted">Sample txns: ${state.runtime.transactions.length}</div>
+            <div class="small-muted">Toggle checkboxes to include/exclude credits.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IF -->
+    <div class="block mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div style="font-weight:900;">IF — Eligibility Conditions</div>
+        <button class="btn-wire primary" id="btnAddCond">+ Condition</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-dark table-bordered align-middle mb-0">
+          <thead style="color:var(--muted);font-size:.78rem;">
+            <tr>
+              <th style="width:80px;">Join</th>
+              <th>Metric</th>
+              <th style="width:90px;">Op</th>
+              <th>Value</th>
+              <th class="text-end" style="width:120px;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="condBody">
+            ${(comp.conditions||[]).length ? (comp.conditions||[]).map(c=>`
+              <tr>
+                <td>
+                  <select class="form-select cond-join" data-id="${c.id}">
+                    <option value="IF">IF</option>
+                    <option value="AND">AND</option>
+                    <option value="OR">OR</option>
+                  </select>
+                </td>
+                <td><input class="form-control cond-metric" data-id="${c.id}" value="${escapeAttr(c.metric)}"></td>
+                <td><input class="form-control cond-op" data-id="${c.id}" value="${escapeAttr(c.op)}"></td>
+                <td><input class="form-control cond-val" data-id="${c.id}" value="${escapeAttr(c.value)}"></td>
+                <td class="text-end"><button class="btn-wire bad btnDelCond" data-id="${c.id}">Delete</button></td>
+              </tr>
+            `).join("") : `<tr><td colspan="5" class="small-muted">No conditions.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- THEN -->
+    <div class="block mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div style="font-weight:900;">THEN — Calculation</div>
+        <span class="chip">Tier stored: <b>${escapeHtml(comp.tierMode || "PROGRESSIVE")}</b></span>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Tier Calculation Model</div>
+          <select class="form-select" id="tierMode">
+            <option value="SIMPLE">SIMPLE — Single Rate</option>
+            <option value="PROGRESSIVE">PROGRESSIVE — Incremental Slabs</option>
+            <option value="FLOOR">FLOOR — Base + Slab</option>
+          </select>
+          <div class="small-muted mt-2" id="tierExplain"></div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Base Rate (%)</div>
+          <input class="form-control" id="baseRate" type="number" step="0.01" value="${escapeAttr(String(comp.baseRate ?? 0))}">
+          <div class="small-muted mt-2">Primarily used for FLOOR model.</div>
+        </div>
+      </div>
+
+      <hr style="border-color:var(--border);">
+
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div style="font-weight:900;">Tier Slabs</div>
+        <div class="d-flex gap-2">
+          <button class="btn-wire primary" id="btnAddTier">+ Tier</button>
+          <button class="btn-wire warn" id="btnNormalize">Normalize</button>
+        </div>
+      </div>
+
+      <div class="small-muted mb-2">Drag rows to reorder.</div>
+
+      <div class="table-responsive">
+        <table class="table table-dark table-bordered align-middle mb-0">
+          <thead style="color:var(--muted);font-size:.78rem;">
+            <tr>
+              <th style="width:60px;">Drag</th>
+              <th>From</th>
+              <th>To (blank=∞)</th>
+              <th>Rate %</th>
+              <th class="text-end" style="width:120px;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="tiersBody">
+            ${(comp.tiers||[]).length ? (comp.tiers||[]).map(t=>`
+              <tr class="draggable-row" draggable="true" data-tier="${t.id}">
+                <td class="text-center">≡</td>
+                <td><input class="form-control tier-from" data-id="${t.id}" value="${escapeAttr(String(t.from))}"></td>
+                <td><input class="form-control tier-to" data-id="${t.id}" value="${escapeAttr(t.to==null?"":String(t.to))}"></td>
+                <td><input class="form-control tier-rate" data-id="${t.id}" value="${escapeAttr(String(t.rate))}"></td>
+                <td class="text-end"><button class="btn-wire bad btnDelTier" data-id="${t.id}">Delete</button></td>
+              </tr>
+            `).join("") : `<tr><td colspan="5" class="small-muted">No tiers.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DRAW -->
+    <div class="block mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div style="font-weight:900;">DRAW</div>
+        <span class="chip">Type: ${escapeHtml(comp.draw?.type ?? "None")}</span>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Draw Type</div>
+          <select class="form-select" id="drawType">
+            <option value="None">None</option>
+            <option value="Recoverable">Recoverable</option>
+            <option value="NonRecoverable">Non-Recoverable</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="small-muted mb-1">Draw Amount</div>
+          <input class="form-control" id="drawAmount" type="number" step="0.01" value="${escapeAttr(String(comp.draw?.amount ?? 0))}">
+        </div>
+        <div class="col-12">
+          <div class="small-muted mb-1">Recovery Notes</div>
+          <input class="form-control" id="drawRecovery" value="${escapeAttr(comp.draw?.recovery ?? "N/A")}">
+        </div>
+      </div>
+    </div>
+
+    <!-- CAP -->
+    <div class="block">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div style="font-weight:900;">CAP</div>
+        <span class="chip">${comp.cap?.enabled ? `Enabled: ${formatCurrencyINR(comp.cap.amount)}` : "Disabled"}</span>
+      </div>
+
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-4">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="capEnabled">
+            <label class="form-check-label" for="capEnabled">Enable Cap</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-8">
+          <div class="small-muted mb-1">Cap Amount (Commission max)</div>
+          <input class="form-control" id="capAmount" type="number" step="0.01" value="${escapeAttr(String(comp.cap?.amount ?? ""))}">
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 mt-3 no-print">
+      <button class="btn-wire good" id="btnSaveComp">Save Component</button>
+      <button class="btn-wire" id="btnRefreshSim">Refresh Simulation</button>
+    </div>
+  `;
+
+  // IMPORTANT: set current values after HTML render (no overwriting defaults)
+  const compTypeEl = document.getElementById("compType");
+  compTypeEl.value = comp.type;
+
+  const tierModeEl = document.getElementById("tierMode");
+  tierModeEl.value = comp.tierMode || "PROGRESSIVE";
+  document.getElementById("tierExplain").textContent = tierModeExplain(tierModeEl.value);
+
+  const drawTypeEl = document.getElementById("drawType");
+  drawTypeEl.value = comp.draw?.type ?? "None";
+
+  const capEnabledEl = document.getElementById("capEnabled");
+  capEnabledEl.checked = !!comp.cap?.enabled;
+
+  // condition join values
+  document.querySelectorAll(".cond-join").forEach(el=>{
+    const c = (comp.conditions||[]).find(x=>x.id===el.dataset.id);
+    el.value = c?.join ?? "IF";
+  });
+
+  // wire events
+  wireEditor(comp);
+}
+
+/* ==========================================================
+   EDITOR WIRING (persist edits)
+========================================================== */
+function normalizeTiers(comp){
+  if(!comp.tiers || comp.tiers.length===0) return;
+  comp.tiers.sort((a,b)=>Number(a.from||0)-Number(b.from||0));
+  for(let i=1;i<comp.tiers.length;i++){
+    const prev = comp.tiers[i-1];
+    const cur = comp.tiers[i];
+    if(prev.to==null) break;
+    cur.from = Number(prev.to);
+    if(cur.to!=null && Number(cur.to) < Number(cur.from)) cur.to = null;
+  }
+}
+
+function wireTierDnD(comp){
+  const body = document.getElementById("tiersBody");
+  if(!body) return;
+  let draggingId = null;
+
+  body.querySelectorAll(".draggable-row").forEach(row=>{
+    row.addEventListener("dragstart", ()=>{
+      draggingId = row.dataset.tier;
+      row.classList.add("dragging");
+    });
+    row.addEventListener("dragend", ()=>{
+      draggingId = null;
+      row.classList.remove("dragging");
+    });
+    row.addEventListener("dragover", (e)=>{
+      e.preventDefault();
+      row.style.outline = "2px solid rgba(59,130,246,.35)";
+    });
+    row.addEventListener("dragleave", ()=> row.style.outline = "");
+    row.addEventListener("drop", (e)=>{
+      e.preventDefault();
+      row.style.outline = "";
+      const targetId = row.dataset.tier;
+      if(!draggingId || draggingId===targetId) return;
+
+      const fromIdx = comp.tiers.findIndex(t=>t.id===draggingId);
+      const toIdx = comp.tiers.findIndex(t=>t.id===targetId);
+      if(fromIdx<0 || toIdx<0) return;
+
+      const [moved] = comp.tiers.splice(fromIdx, 1);
+      comp.tiers.splice(toIdx, 0, moved);
+
+      // keep UI stable but simplest: re-render editor
+      renderEditor();
+      renderDoc();
+      refreshSimulation();
+      showToast("Tier reordered");
+    });
+  });
+}
+
+function wireEditor(comp){
+  // Basics
+  document.getElementById("compType").addEventListener("change", (e)=>{
+    comp.type = e.target.value;
+    renderTree();
+    renderDoc();
+    showToast("Component Type updated");
+  });
+
+  document.getElementById("compRole").addEventListener("change", (e)=>{
+    comp.appliesTo = comp.appliesTo || {};
+    comp.appliesTo.role = e.target.value;
+    renderDoc();
+    showToast("Role updated");
+  });
+
+  document.getElementById("compRegion").addEventListener("change", (e)=>{
+    comp.appliesTo = comp.appliesTo || {};
+    comp.appliesTo.region = e.target.value;
+    renderDoc();
+    showToast("Region updated");
+  });
+
+  document.getElementById("compNotes").addEventListener("change", (e)=>{
+    comp.notes = e.target.value;
+    renderDoc();
+    showToast("Notes updated");
+  });
+
+  // Credit assignment
+  document.getElementById("creditDirect").addEventListener("change", (e)=>{
+    comp.creditScope = comp.creditScope || {};
+    comp.creditScope.direct = !!e.target.checked;
+    renderDoc(); refreshSimulation();
+    showToast("Credit: Direct updated");
+  });
+  document.getElementById("creditOverlay").addEventListener("change", (e)=>{
+    comp.creditScope = comp.creditScope || {};
+    comp.creditScope.overlay = !!e.target.checked;
+    renderDoc(); refreshSimulation();
+    showToast("Credit: Overlay updated");
+  });
+  document.getElementById("creditManager").addEventListener("change", (e)=>{
+    comp.creditScope = comp.creditScope || {};
+    comp.creditScope.manager = !!e.target.checked;
+    renderDoc(); refreshSimulation();
+    showToast("Credit: Manager updated");
+  });
+
+  // IF conditions
+  document.getElementById("btnAddCond").addEventListener("click", ()=>{
+    comp.conditions = comp.conditions || [];
+    comp.conditions.push({ id: uid("c"), join: comp.conditions.length ? "AND" : "IF", metric:"Revenue", op:">", value:0 });
+    renderEditor(); // show new row
+    renderDoc(); refreshSimulation();
+    showToast("Condition added");
+  });
+
+  document.querySelectorAll(".cond-join").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      const c = comp.conditions.find(x=>x.id===el.dataset.id);
+      c.join = el.value;
+      renderDoc(); refreshSimulation();
+    });
+  });
+  document.querySelectorAll(".cond-metric").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      const c = comp.conditions.find(x=>x.id===el.dataset.id);
+      c.metric = el.value;
+      renderDoc(); refreshSimulation();
+    });
+  });
+  document.querySelectorAll(".cond-op").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      const c = comp.conditions.find(x=>x.id===el.dataset.id);
+      c.op = el.value;
+      renderDoc(); refreshSimulation();
+    });
+  });
+  document.querySelectorAll(".cond-val").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      const c = comp.conditions.find(x=>x.id===el.dataset.id);
+      c.value = el.value;
+      renderDoc(); refreshSimulation();
+    });
+  });
+  document.querySelectorAll(".btnDelCond").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      comp.conditions = (comp.conditions||[]).filter(x=>x.id!==btn.dataset.id);
+      renderEditor(); renderDoc(); refreshSimulation();
+      showToast("Condition deleted");
+    });
+  });
+
+  // THEN (Tier Model + Base Rate)
+  document.getElementById("tierMode").addEventListener("change",(e)=>{
+    const newMode = e.target.value;
+    comp.tierMode = newMode; // persist
+    document.getElementById("tierExplain").textContent = tierModeExplain(newMode);
+    renderTree();
+    renderDoc();
+    refreshSimulation();
+    showToast("Tier Model updated");
+  });
+
+  document.getElementById("baseRate").addEventListener("change",(e)=>{
+    comp.baseRate = Number(e.target.value||0);
+    renderDoc();
+    refreshSimulation();
+    showToast("Base rate updated");
+  });
+
+  // Tiers
+  document.getElementById("btnAddTier").addEventListener("click", ()=>{
+    comp.tiers = comp.tiers || [];
+    const last = comp.tiers[comp.tiers.length-1];
+    const from = last ? (last.to ?? (Number(last.from)+100000)) : 0;
+    const to = (last && last.to==null) ? null : (Number(from)+100000);
+    comp.tiers.push({ id: uid("t"), from, to, rate: (Number(last?.rate) || 5) });
+    renderEditor(); renderDoc(); refreshSimulation();
+    showToast("Tier added");
+  });
+
+  document.getElementById("btnNormalize").addEventListener("click", ()=>{
+    normalizeTiers(comp);
+    renderEditor(); renderDoc(); refreshSimulation();
+    showToast("Tiers normalized");
+  });
+
+  document.querySelectorAll(".tier-from").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      const t = comp.tiers.find(x=>x.id===el.dataset.id);
+      t.from = Number(el.value)||0;
+      renderDoc(); refreshSimulation();
+    });
+  });
+  document.querySelectorAll(".tier-to").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      const t = comp.tiers.find(x=>x.id===el.dataset.id);
+      t.to = el.value.trim()==="" ? null : (Number(el.value)||null);
+      renderDoc(); refreshSimulation();
+    });
+  });
+  document.querySelectorAll(".tier-rate").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      const t = comp.tiers.find(x=>x.id===el.dataset.id);
+      t.rate = Number(el.value)||0;
+      renderDoc(); refreshSimulation();
+    });
+  });
+  document.querySelectorAll(".btnDelTier").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      comp.tiers = (comp.tiers||[]).filter(x=>x.id!==btn.dataset.id);
+      renderEditor(); renderDoc(); refreshSimulation();
+      showToast("Tier deleted");
+    });
+  });
+
+  wireTierDnD(comp);
+
+  // DRAW
+  document.getElementById("drawType").addEventListener("change",(e)=>{
+    comp.draw = comp.draw || {};
+    comp.draw.type = e.target.value;
+    if(comp.draw.type==="None"){
+      comp.draw.amount = 0;
+      comp.draw.recovery = "N/A";
+    }else{
+      comp.draw.recovery = comp.draw.recovery && comp.draw.recovery!=="N/A" ? comp.draw.recovery : "Recovered from future commissions.";
+    }
+    renderEditor(); // refresh chip text + fields if needed
+    renderDoc();
+    showToast("Draw updated");
+  });
+  document.getElementById("drawAmount").addEventListener("change",(e)=>{
+    comp.draw = comp.draw || {};
+    comp.draw.amount = Number(e.target.value||0);
+    renderDoc();
+    showToast("Draw amount updated");
+  });
+  document.getElementById("drawRecovery").addEventListener("change",(e)=>{
+    comp.draw = comp.draw || {};
+    comp.draw.recovery = e.target.value;
+    renderDoc();
+    showToast("Draw recovery updated");
+  });
+
+  // CAP
+  document.getElementById("capEnabled").addEventListener("change",(e)=>{
+    comp.cap = comp.cap || {};
+    comp.cap.enabled = !!e.target.checked;
+    if(!comp.cap.enabled) comp.cap.amount = null;
+    renderEditor(); renderDoc(); refreshSimulation();
+    showToast("Cap updated");
+  });
+  document.getElementById("capAmount").addEventListener("change",(e)=>{
+    comp.cap = comp.cap || {};
+    const v = e.target.value.trim();
+    comp.cap.amount = v==="" ? null : Number(v);
+    renderDoc();
+    refreshSimulation();
+    showToast("Cap amount updated");
+  });
+
+  // Buttons
+  document.getElementById("btnSaveComp").addEventListener("click", ()=> showToast("Component saved (mock)"));
+  document.getElementById("btnRefreshSim").addEventListener("click", refreshSimulation);
+}
+
+/* ==========================================================
+   DOCUMENT PREVIEW
+========================================================== */
+function renderDoc(){
+  const p = state.plan;
+  const doc = document.getElementById("docHost");
+  const payee = state.runtime.currentPayee;
+
+  const compSections = p.components.map((c, idx)=>{
+    const condText = (c.conditions||[]).length
+      ? (c.conditions||[]).map((x)=>`${x.join} ${x.metric} ${x.op} ${escapeHtml(x.value)}`).join(" ")
+      : "No eligibility conditions.";
+
+    const tierMode = c.tierMode || "PROGRESSIVE";
+    const tierRows = (c.tiers||[]).length ? `
+      <table>
+        <thead><tr><th>From</th><th>To</th><th>Rate (%)</th></tr></thead>
+        <tbody>
+          ${(c.tiers||[]).map(t=>`
+            <tr>
+              <td>${escapeHtml(t.from)}</td>
+              <td>${t.to==null ? "∞" : escapeHtml(t.to)}</td>
+              <td>${escapeHtml(t.rate)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    ` : `<div class="muted">No tiers.</div>`;
+
+    const capText = c.cap?.enabled ? `${formatCurrencyINR(c.cap.amount)} (maximum commission)` : "Not applicable";
+    const drawText = c.draw?.type && c.draw.type!=="None"
+      ? `${c.draw.type} draw of ${formatCurrencyINR(c.draw.amount)}; ${escapeHtml(c.draw.recovery || "")}`
+      : "No draw applies.";
+
+    const cs = c.creditScope || { direct:true, overlay:false, manager:false };
+    const csText = [
+      cs.direct ? "Direct Assignment" : null,
+      cs.overlay ? "Overlay Credit" : null,
+      cs.manager ? "Manager Hierarchy" : null
+    ].filter(Boolean).join(", ") || "None";
+
+    return `
+      <div style="margin-top:14px;">
+        <div class="clause-title">${idx+1}. ${escapeHtml(c.name)}</div>
+        <div class="muted">Component Type: ${escapeHtml(c.type)} • Applies To: ${escapeHtml(c.appliesTo?.role||"—")} / ${escapeHtml(c.appliesTo?.region||"—")}</div>
+
+        <div style="margin-top:10px; font-weight:800;">${idx+1}.1 Credit Assignment</div>
+        <div class="muted">
+          Included transaction credits: <b>${escapeHtml(csText)}</b><br/>
+          Current Payee Context: <b>${escapeHtml(payee.name)} (${escapeHtml(payee.id)})</b>
+        </div>
+
+        <div style="margin-top:10px; font-weight:800;">${idx+1}.2 Eligibility (IF)</div>
+        <div class="muted">${condText}</div>
+
+        <div style="margin-top:10px; font-weight:800;">${idx+1}.3 Calculation (THEN)</div>
+        <div class="muted">
+          Tier Model: <b>${escapeHtml(tierMode)}</b> — ${escapeHtml(tierModeExplain(tierMode))}<br/>
+          Base Rate: <b>${escapeHtml(c.baseRate ?? 0)}%</b>
+        </div>
+        ${tierRows}
+
+        <div style="margin-top:10px; font-weight:800;">${idx+1}.4 Draw</div>
+        <div class="muted">${drawText}</div>
+
+        <div style="margin-top:10px; font-weight:800;">${idx+1}.5 Cap</div>
+        <div class="muted">${capText}</div>
+
+        <div style="margin-top:10px; font-weight:800;">${idx+1}.6 Notes</div>
+        <div class="muted">${escapeHtml(c.notes || "—")}</div>
+      </div>
+    `;
+  }).join("");
+
+  doc.innerHTML = `
+    <h3>${escapeHtml(p.payeeLanguage.title)}</h3>
+    <div class="muted"><b>Plan Name:</b> ${escapeHtml(p.name)} • <b>Version:</b> ${escapeHtml(p.version)} • <b>Status:</b> ${escapeHtml(p.status)}</div>
+    <div class="muted"><b>Effective Period:</b> ${escapeHtml(p.effectiveFrom)} to ${escapeHtml(p.effectiveTo)} • <b>Currency:</b> ${escapeHtml(p.currency)}</div>
+    <hr/>
+    <div class="clause-title">Plan Overview</div>
+    <div class="muted">${escapeHtml(p.payeeLanguage.intro)}</div>
+
+    <div class="clause-title" style="margin-top:14px;">Commission Components</div>
+    ${compSections}
+
+    <div class="clause-title" style="margin-top:16px;">General Terms</div>
+    <div class="muted">
+      1) Commissions are calculated based on eligible transactions and are subject to audit and approval.<br/>
+      2) The company may adjust payouts for returns, chargebacks, policy violations, or corrections.<br/>
+      3) This document is provided for informational and acceptance purposes; local legal/HR policies may apply.
+    </div>
+
+    <div style="margin-top:18px;">
+      <div class="clause-title">Acceptance</div>
+      <div class="muted">
+        Payee acknowledges understanding and acceptance of this plan for the effective period.<br/><br/>
+        Payee Signature: _______________________  Date: _____________<br/>
+        Company Representative: ________________  Date: _____________
+      </div>
+    </div>
+  `;
+}
+
+/* ==========================================================
+   SIMULATION
+========================================================== */
+let simChart = null;
+
+function refreshSimulation(){
+  const comp = getActiveComponent();
+  document.getElementById("simModeChip").textContent = `Tier: ${comp.tierMode || "PROGRESSIVE"}`;
+
+  const mode = document.getElementById("simMode").value;
+
+  let revenueForCalc = 0;
+  let commission = 0;
+  let effRate = 0;
+
+  if(mode === "MANUAL"){
+    revenueForCalc = Number(document.getElementById("simRevenue").value || 0);
+    commission = computeCommission(comp, revenueForCalc);
+    effRate = revenueForCalc > 0 ? (commission / revenueForCalc * 100) : 0;
+
+    document.getElementById("simTxnSummary").textContent = `Eligible Revenue: — (Manual)`;
+    document.getElementById("simTxnIds").textContent = "TXN Mode off.";
+  } else {
+    const r = evaluateTransactionsForPayee(comp);
+    revenueForCalc = r.eligibleRevenue;
+    commission = r.commission;
+    effRate = revenueForCalc > 0 ? (commission / revenueForCalc * 100) : 0;
+
+    document.getElementById("simTxnSummary").textContent =
+      `Eligible Revenue: ${formatCurrencyINR(revenueForCalc)} • Matches: ${r.matched.length}`;
+
+    document.getElementById("simTxnIds").textContent =
+      r.matched.length
+        ? ("Matching TXNs: " + r.matched.map(x=>`${x.id}(₹${Number(x.revenue).toLocaleString("en-IN")})`).join(", "))
+        : "No transactions matched Credit Assignment + IF rules.";
+  }
+
+  document.getElementById("simCommission").value = formatCurrencyINR(Math.round(commission));
+  document.getElementById("simEffRate").value = `${effRate.toFixed(2)}%`;
+
+  renderSimChart(comp);
+}
+
+function renderSimChart(comp){
+  const canvas = document.getElementById("simChart");
+  const labels = [];
+  const data = [];
+
+  const maxX = 300000;
+  const step = 10000;
+
+  for(let r=0; r<=maxX; r+=step){
+    labels.push(r);
+    data.push(computeCommission(comp, r));
+  }
+
+  if(simChart) simChart.destroy();
+  simChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Commission Payout",
+        data,
+        fill: true,
+        tension: 0.25,
+        borderColor: "#3b82f6",
+        backgroundColor: "rgba(59,130,246,.18)"
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { title: { display: true, text: "Revenue" },
+             ticks: { callback: (v,i)=> i%3===0 ? `₹${labels[i]/1000}k` : "" } },
+        y: { title: { display: true, text: "Commission" } }
+      },
+      plugins: { legend: { labels: { color: "#cbd5e1" } } }
+    }
+  });
+}
+
+/* ==========================================================
+   JSON + GLOBAL ACTIONS
+========================================================== */
+function viewJson(){
+  document.getElementById("jsonPre").textContent = JSON.stringify(state, null, 2);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById("jsonModal")).show();
+}
+async function copyJsonText(){
+  const text = JSON.stringify(state, null, 2);
+  try{ await navigator.clipboard.writeText(text); showToast("JSON copied"); }
+  catch{ showToast("Copy failed (browser permissions)"); }
+}
+
+function addComponent(){
+  const id = uid("comp");
+  state.plan.components.push({
+    id,
+    name: "New Component",
+    type: "TieredPercentage",
+    appliesTo: { role: "All", region: "All" },
+    creditScope: { direct:true, overlay:false, manager:false },
+    conditions: [{ id: uid("c"), join:"IF", metric:"Revenue", op:">", value:0 }],
+    tierMode: "PROGRESSIVE",
+    baseRate: 5,
+    tiers: [{ id: uid("t"), from:0, to:null, rate:5 }],
+    draw: { type:"None", amount:0, recovery:"N/A" },
+    cap: { enabled:false, amount:null },
+    notes: "Add component notes."
+  });
+  state.ui.activeComponentId = id;
+  renderAll();
+  showToast("Component added");
+}
+
+function deleteActiveComponent(){
+  if(state.plan.components.length<=1){ showToast("At least one component is required"); return; }
+  const comp = getActiveComponent();
+  const idx = state.plan.components.findIndex(c=>c.id===comp.id);
+  state.plan.components.splice(idx,1);
+  state.ui.activeComponentId = state.plan.components[0].id;
+  renderAll();
+  showToast("Component deleted");
+}
+
+function resetActiveComponent(){
+  const comp = getActiveComponent();
+  comp.type = "TieredPercentage";
+  comp.appliesTo = { role:"Sales Rep", region:"APAC" };
+  comp.creditScope = { direct:true, overlay:true, manager:false };
+  comp.conditions = [
+    { id: uid("c"), join:"IF", metric:"Revenue", op:">", value:0 },
+    { id: uid("c"), join:"AND", metric:"ProductCategory", op:"=", value:"Hardware" },
+    { id: uid("c"), join:"AND", metric:"Region", op:"=", value:"APAC" }
+  ];
+  comp.tierMode = "PROGRESSIVE";
+  comp.baseRate = 5;
+  comp.tiers = [
+    { id: uid("t"), from:0, to:100000, rate:5 },
+    { id: uid("t"), from:100000, to:200000, rate:7 },
+    { id: uid("t"), from:200000, to:null, rate:10 }
+  ];
+  comp.draw = { type:"None", amount:0, recovery:"N/A" };
+  comp.cap = { enabled:true, amount:250000 };
+  comp.notes = "Reset component notes.";
+  renderAll();
+  showToast("Component reset");
+}
+
+function renamePlan(){
+  const name = prompt("Plan name:", state.plan.name);
+  if(name && name.trim()){ state.plan.name = name.trim(); renderHeader(); renderDoc(); showToast("Plan renamed"); }
+}
+function renameComponent(){
+  const comp = getActiveComponent();
+  const name = prompt("Component name:", comp.name);
+  if(name && name.trim()){
+    comp.name = name.trim();
+    renderTree(); renderEditor(); renderDoc();
+    showToast("Component renamed");
+  }
+}
+
+function savePlan(){ showToast("Saved (mock)"); }
+function activatePlan(){ state.plan.status = "Active"; renderHeader(); renderDoc(); showToast("Plan activated"); }
+function archivePlan(){ state.plan.status = "Archived"; renderHeader(); renderDoc(); showToast("Plan archived"); }
+
+function renderAll(){
+  if(!state.plan.components.some(c=>c.id===state.ui.activeComponentId)){
+    state.ui.activeComponentId = state.plan.components[0]?.id || "";
+  }
+  renderHeader();
+  renderTree();
+  renderEditor();
+  renderDoc();
+  refreshSimulation();
+}
+
+/* ==========================================================
+   INIT
+========================================================== */
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.getElementById("btnViewJson").addEventListener("click", viewJson);
+  document.getElementById("btnCopyJson").addEventListener("click", copyJsonText);
+  document.getElementById("btnCopyJsonTop").addEventListener("click", copyJsonText);
+  document.getElementById("btnPrint").addEventListener("click", ()=>window.print());
+
+  document.getElementById("btnAddComponentTop").addEventListener("click", addComponent);
+  document.getElementById("btnAddComponentLeft").addEventListener("click", addComponent);
+
+  document.getElementById("btnSave").addEventListener("click", savePlan);
+  document.getElementById("btnActivate").addEventListener("click", activatePlan);
+  document.getElementById("btnArchive").addEventListener("click", archivePlan);
+
+  document.getElementById("btnRenamePlan").addEventListener("click", renamePlan);
+  document.getElementById("btnRenameComp").addEventListener("click", renameComponent);
+  document.getElementById("btnDeleteComp").addEventListener("click", deleteActiveComponent);
+  document.getElementById("btnResetComp").addEventListener("click", resetActiveComponent);
+  document.getElementById("btnRefreshDoc").addEventListener("click", ()=>{ renderDoc(); showToast("Document refreshed"); });
+
+  document.getElementById("simRevenue").addEventListener("input", refreshSimulation);
+  document.getElementById("simMode").addEventListener("change", ()=>{ refreshSimulation(); showToast("Simulation mode changed"); });
+
+  renderAll();
+});
+</script>
+
+</body>
+</html>
