@@ -247,13 +247,14 @@
       <div class="brand-badge">QC</div>
       <div>
         <div style="font-weight:900;line-height:1.1;">Commission Plan Designer</div>
-        <div class="small-muted">Full Pagelet UI • Fully Editable • Credit Assignment • IF/THEN/DRAW/CAP</div>
+        <div class="small-muted">Full Pagelet UI • Fully Editable • Credit Assignment • IF/THEN/DRAW • Plan-level CAP</div>
       </div>
     </div>
     <div class="d-flex flex-wrap gap-2">
       <button class="btn-wire" id="btnViewJson">View JSON</button>
       <button class="btn-wire" id="btnCopyJsonTop">Copy JSON</button>
       <button class="btn-wire" id="btnPrint">Print Document</button>
+      <button class="btn-wire" id="btnEditPlanCap">Plan Cap</button>
       <button class="btn-wire" id="btnTheme">☾ Dark</button>
       <button class="btn-wire primary" id="btnAddComponentTop">+ Component</button>
       <button class="btn-wire good" id="btnSave">Save</button>
@@ -277,6 +278,7 @@
             <span class="chip" id="hdrEffective">Effective: —</span>
             <span class="chip" id="hdrCurrency">Currency: —</span>
             <span class="chip" id="hdrVersion">Version: —</span>
+            <span class="chip" id="hdrPlanCap">Plan Cap: —</span>
           </div>
         </div>
 
@@ -448,6 +450,7 @@ const state = {
         "This commission plan defines the compensation structure applicable to eligible payees. " +
         "All commissions are subject to company policies and the rules described below."
     },
+    cap: { enabled:true, amount:250000 },
     components: [
       {
         id: "comp_revenue",
@@ -478,9 +481,6 @@ const state = {
         // DRAW
         draw: { type:"None", amount:0, recovery:"N/A" },
 
-        // CAP
-        cap: { enabled:true, amount:250000 },
-
         notes: "Rates apply on eligible revenue. Subject to approval and clawback policy."
       },
       {
@@ -494,7 +494,6 @@ const state = {
         baseRate: 0,
         tiers: [{ id:"t1", from:0, to:null, rate:2 }],
         draw: { type:"None", amount:0, recovery:"N/A" },
-        cap: { enabled:false, amount:null },
         notes: "Accelerator applies on eligible products only."
       }
     ]
@@ -559,12 +558,26 @@ function tierModeExplain(mode){
 /* ==========================================================
    CREDIT ASSIGNMENT (Direct / Overlay / Manager)
 ========================================================== */
+function creditScopeLabels(scope){
+  const active = scope || { direct:true, overlay:false, manager:false };
+  return [
+    active.direct ? "Direct Assignment" : null,
+    active.overlay ? "Overlay Credit" : null,
+    active.manager ? "Manager Hierarchy" : null
+  ].filter(Boolean);
+}
+
+function getCreditReasons(tx, scope, payee){
+  const reasons = [];
+  if(scope.direct && tx.assignedPayeeId === payee.id) reasons.push("Direct");
+  if(scope.overlay && Array.isArray(tx.overlayPayeeIds) && tx.overlayPayeeIds.includes(payee.id)) reasons.push("Overlay");
+  if(scope.manager && tx.managerId === payee.id) reasons.push("Manager");
+  return reasons;
+}
+
 function passesCreditScope(tx, comp, payee){
   const scope = comp.creditScope || { direct:true, overlay:false, manager:false };
-  if(scope.direct && tx.assignedPayeeId === payee.id) return true;
-  if(scope.overlay && Array.isArray(tx.overlayPayeeIds) && tx.overlayPayeeIds.includes(payee.id)) return true;
-  if(scope.manager && tx.managerId === payee.id) return true;
-  return false;
+  return getCreditReasons(tx, scope, payee).length > 0;
 }
 
 /* ==========================================================
@@ -643,29 +656,39 @@ function computeCommission(comp, revenue){
     payout = revenue*(baseRate/100) + revenue*(slabRate/100);
   }
 
-  if(comp.cap?.enabled && comp.cap?.amount != null){
-    const cap = Number(comp.cap.amount);
-    if(!Number.isNaN(cap) && payout > cap) payout = cap;
-  }
   return payout;
+}
+
+function applyPlanCap(commission){
+  const cap = state.plan.cap;
+  if(!cap?.enabled || cap.amount == null) return commission;
+  const max = Number(cap.amount);
+  if(Number.isNaN(max)) return commission;
+  return Math.min(commission, max);
 }
 
 function evaluateTransactionsForPayee(comp){
   const payee = state.runtime.currentPayee;
   const txs = state.runtime.transactions;
+  const scope = comp.creditScope || { direct:true, overlay:false, manager:false };
 
   const matched = [];
+  const matchedDetails = [];
+  const creditCounts = { Direct:0, Overlay:0, Manager:0 };
   let eligibleRevenue = 0;
 
   for(const tx of txs){
-    if(!passesCreditScope(tx, comp, payee)) continue;
+    const reasons = getCreditReasons(tx, scope, payee);
+    if(reasons.length===0) continue;
     if(!passesConditions(tx, comp)) continue;
     matched.push(tx);
+    matchedDetails.push({ tx, reasons });
+    reasons.forEach(r => { creditCounts[r] = (creditCounts[r] || 0) + 1; });
     eligibleRevenue += Number(tx.revenue || 0);
   }
 
   const commission = computeCommission(comp, eligibleRevenue);
-  return { matched, eligibleRevenue, commission };
+  return { matched, matchedDetails, creditCounts, eligibleRevenue, commission };
 }
 
 /* ==========================================================
@@ -678,6 +701,8 @@ function renderHeader(){
   document.getElementById("hdrEffective").textContent = `Effective: ${p.effectiveFrom} → ${p.effectiveTo}`;
   document.getElementById("hdrCurrency").textContent = `Currency: ${p.currency}`;
   document.getElementById("hdrVersion").textContent = `Version: ${p.version}`;
+  document.getElementById("hdrPlanCap").textContent =
+    `Plan Cap: ${p.cap?.enabled && p.cap?.amount != null ? formatCurrencyINR(p.cap.amount) : "Disabled"}`;
 }
 
 /* ==========================================================
@@ -738,7 +763,7 @@ function renderEditor(){
   const comp = getActiveComponent();
   document.getElementById("editorTitle").textContent = `Component Editor — ${comp.name}`;
   document.getElementById("editorSubTitle").textContent =
-    `${comp.type} • Applies: ${comp.appliesTo?.role ?? "—"} / ${comp.appliesTo?.region ?? "—"}`;
+    `${comp.type} • Applies: ${comp.appliesTo?.role ?? "—"} / ${comp.appliesTo?.region ?? "—"} • Credit: ${creditScopeLabels(comp.creditScope).join(", ") || "None"}`;
 
   const credit = comp.creditScope || { direct:true, overlay:false, manager:false };
 
@@ -780,7 +805,7 @@ function renderEditor(){
         <div style="font-weight:900;">CREDIT ASSIGNMENT</div>
         <span class="chip">Payee: ${escapeHtml(state.runtime.currentPayee.name)} (${escapeHtml(state.runtime.currentPayee.id)})</span>
       </div>
-      <div class="small-muted mb-2">This filter runs before IF conditions.</div>
+      <div class="small-muted mb-2">This filter runs before IF conditions. Overlay uses <code>overlayPayeeIds</code>; Manager Hierarchy uses <code>managerId</code>.</div>
       <div class="row g-3">
         <div class="col-12 col-md-7">
           <div class="form-check">
@@ -935,24 +960,10 @@ function renderEditor(){
       </div>
     </div>
 
-    <!-- CAP -->
     <div class="block">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <div style="font-weight:900;">CAP</div>
-        <span class="chip">${comp.cap?.enabled ? `Enabled: ${formatCurrencyINR(comp.cap.amount)}` : "Disabled"}</span>
-      </div>
-
-      <div class="row g-3 align-items-end">
-        <div class="col-12 col-md-4">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="capEnabled">
-            <label class="form-check-label" for="capEnabled">Enable Cap</label>
-          </div>
-        </div>
-        <div class="col-12 col-md-8">
-          <div class="small-muted mb-1">Cap Amount (Commission max)</div>
-          <input class="form-control" id="capAmount" type="number" step="0.01" value="${escapeAttr(String(comp.cap?.amount ?? ""))}">
-        </div>
+      <div style="font-weight:900;" class="mb-2">CAP</div>
+      <div class="small-muted">
+        Cap is configured once at plan level and applies to the calculated commission.
       </div>
     </div>
 
@@ -972,9 +983,6 @@ function renderEditor(){
 
   const drawTypeEl = document.getElementById("drawType");
   drawTypeEl.value = comp.draw?.type ?? "None";
-
-  const capEnabledEl = document.getElementById("capEnabled");
-  capEnabledEl.checked = !!comp.cap?.enabled;
 
   // condition join values
   document.querySelectorAll(".cond-join").forEach(el=>{
@@ -1229,23 +1237,6 @@ function wireEditor(comp){
     showToast("Draw recovery updated");
   });
 
-  // CAP
-  document.getElementById("capEnabled").addEventListener("change",(e)=>{
-    comp.cap = comp.cap || {};
-    comp.cap.enabled = !!e.target.checked;
-    if(!comp.cap.enabled) comp.cap.amount = null;
-    renderEditor(); renderDoc(); refreshSimulation();
-    showToast("Cap updated");
-  });
-  document.getElementById("capAmount").addEventListener("change",(e)=>{
-    comp.cap = comp.cap || {};
-    const v = e.target.value.trim();
-    comp.cap.amount = v==="" ? null : Number(v);
-    renderDoc();
-    refreshSimulation();
-    showToast("Cap amount updated");
-  });
-
   // Buttons
   document.getElementById("btnSaveComp").addEventListener("click", ()=> showToast("Component saved (mock)"));
   document.getElementById("btnRefreshSim").addEventListener("click", refreshSimulation);
@@ -1280,17 +1271,13 @@ function renderDoc(){
       </table>
     ` : `<div class="muted">No tiers.</div>`;
 
-    const capText = c.cap?.enabled ? `${formatCurrencyINR(c.cap.amount)} (maximum commission)` : "Not applicable";
+    const capText = p.cap?.enabled ? `${formatCurrencyINR(p.cap.amount)} (plan-level maximum commission)` : "Not applicable";
     const drawText = c.draw?.type && c.draw.type!=="None"
       ? `${c.draw.type} draw of ${formatCurrencyINR(c.draw.amount)}; ${escapeHtml(c.draw.recovery || "")}`
       : "No draw applies.";
 
     const cs = c.creditScope || { direct:true, overlay:false, manager:false };
-    const csText = [
-      cs.direct ? "Direct Assignment" : null,
-      cs.overlay ? "Overlay Credit" : null,
-      cs.manager ? "Manager Hierarchy" : null
-    ].filter(Boolean).join(", ") || "None";
+    const csText = creditScopeLabels(cs).join(", ") || "None";
 
     return `
       <div style="margin-top:14px;">
@@ -1300,7 +1287,8 @@ function renderDoc(){
         <div style="margin-top:10px; font-weight:800;">${idx+1}.1 Credit Assignment</div>
         <div class="muted">
           Included transaction credits: <b>${escapeHtml(csText)}</b><br/>
-          Current Payee Context: <b>${escapeHtml(payee.name)} (${escapeHtml(payee.id)})</b>
+          Current Payee Context: <b>${escapeHtml(payee.name)} (${escapeHtml(payee.id)})</b><br/>
+          Overlay match logic: <b>payee id in transaction overlayPayeeIds</b>; Manager match logic: <b>transaction.managerId equals current payee id</b>
         </div>
 
         <div style="margin-top:10px; font-weight:800;">${idx+1}.2 Eligibility (IF)</div>
@@ -1332,6 +1320,7 @@ function renderDoc(){
     <hr/>
     <div class="clause-title">Plan Overview</div>
     <div class="muted">${escapeHtml(p.payeeLanguage.intro)}</div>
+    <div class="muted" style="margin-top:6px;"><b>Plan Commission Cap:</b> ${escapeHtml(capOverviewText(p))}</div>
 
     <div class="clause-title" style="margin-top:14px;">Commission Components</div>
     ${compSections}
@@ -1371,7 +1360,7 @@ function refreshSimulation(){
 
   if(mode === "MANUAL"){
     revenueForCalc = Number(document.getElementById("simRevenue").value || 0);
-    commission = computeCommission(comp, revenueForCalc);
+    commission = applyPlanCap(computeCommission(comp, revenueForCalc));
     effRate = revenueForCalc > 0 ? (commission / revenueForCalc * 100) : 0;
 
     document.getElementById("simTxnSummary").textContent = `Eligible Revenue: — (Manual)`;
@@ -1379,15 +1368,20 @@ function refreshSimulation(){
   } else {
     const r = evaluateTransactionsForPayee(comp);
     revenueForCalc = r.eligibleRevenue;
-    commission = r.commission;
+    commission = applyPlanCap(r.commission);
     effRate = revenueForCalc > 0 ? (commission / revenueForCalc * 100) : 0;
 
+    const creditBreakdown = Object.entries(r.creditCounts)
+      .filter(([,count])=>count>0)
+      .map(([k,v])=>`${k}: ${v}`)
+      .join(" • ") || "None";
+
     document.getElementById("simTxnSummary").textContent =
-      `Eligible Revenue: ${formatCurrencyINR(revenueForCalc)} • Matches: ${r.matched.length}`;
+      `Eligible Revenue: ${formatCurrencyINR(revenueForCalc)} • Matches: ${r.matched.length} • Credit Path: ${creditBreakdown}`;
 
     document.getElementById("simTxnIds").textContent =
-      r.matched.length
-        ? ("Matching TXNs: " + r.matched.map(x=>`${x.id}(₹${Number(x.revenue).toLocaleString("en-IN")})`).join(", "))
+      r.matchedDetails.length
+        ? ("Matching TXNs: " + r.matchedDetails.map(({tx,reasons})=>`${tx.id}(₹${Number(tx.revenue).toLocaleString("en-IN")}; ${reasons.join("+")})`).join(", "))
         : "No transactions matched Credit Assignment + IF rules.";
   }
 
@@ -1407,7 +1401,7 @@ function renderSimChart(comp){
 
   for(let r=0; r<=maxX; r+=step){
     labels.push(r);
-    data.push(computeCommission(comp, r));
+    data.push(applyPlanCap(computeCommission(comp, r)));
   }
 
   if(simChart) simChart.destroy();
@@ -1462,7 +1456,6 @@ function addComponent(){
     baseRate: 5,
     tiers: [{ id: uid("t"), from:0, to:null, rate:5 }],
     draw: { type:"None", amount:0, recovery:"N/A" },
-    cap: { enabled:false, amount:null },
     notes: "Add component notes."
   });
   state.ui.activeComponentId = id;
@@ -1498,10 +1491,42 @@ function resetActiveComponent(){
     { id: uid("t"), from:200000, to:null, rate:10 }
   ];
   comp.draw = { type:"None", amount:0, recovery:"N/A" };
-  comp.cap = { enabled:true, amount:250000 };
   comp.notes = "Reset component notes.";
   renderAll();
   showToast("Component reset");
+}
+
+function capOverviewText(plan){
+  return plan.cap?.enabled && plan.cap?.amount != null
+    ? `${formatCurrencyINR(plan.cap.amount)} (applies to the commission result)`
+    : "Disabled";
+}
+
+function editPlanCap(){
+  const cap = state.plan.cap || { enabled:false, amount:null };
+  const amountInput = prompt(
+    "Plan-level cap amount (leave blank to disable cap):",
+    cap.enabled && cap.amount != null ? String(cap.amount) : ""
+  );
+  if(amountInput === null) return;
+
+  const raw = amountInput.trim();
+  if(raw === ""){
+    state.plan.cap = { enabled:false, amount:null };
+    renderHeader(); renderDoc(); refreshSimulation();
+    showToast("Plan cap disabled");
+    return;
+  }
+
+  const amount = Number(raw);
+  if(Number.isNaN(amount) || amount < 0){
+    showToast("Invalid cap amount");
+    return;
+  }
+
+  state.plan.cap = { enabled:true, amount };
+  renderHeader(); renderDoc(); refreshSimulation();
+  showToast("Plan cap updated");
 }
 
 function renamePlan(){
@@ -1541,6 +1566,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
   document.getElementById("btnCopyJson").addEventListener("click", copyJsonText);
   document.getElementById("btnCopyJsonTop").addEventListener("click", copyJsonText);
   document.getElementById("btnPrint").addEventListener("click", ()=>window.print());
+  document.getElementById("btnEditPlanCap").addEventListener("click", editPlanCap);
   document.getElementById("btnTheme").addEventListener("click", toggleTheme);
 
   document.getElementById("btnAddComponentTop").addEventListener("click", addComponent);
